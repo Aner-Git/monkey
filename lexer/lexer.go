@@ -26,8 +26,8 @@ func (l *Lexer) readChar() {
 	l.readPosition += 1
 }
 
-func (l *Lexer) isPeekChar(char byte)bool {
-    return char == l.peekChar()
+func (l *Lexer) isPeekChar(char byte) bool {
+	return char == l.peekChar()
 }
 
 func (l *Lexer) peekChar() byte {
@@ -69,7 +69,7 @@ func (l *Lexer) NextToken() token.Token {
 	case '=':
 		if l.isPeekChar('=') {
 			l.readChar()
-			literal := "==" 
+			literal := "=="
 			tok = token.Token{Type: token.EQ, Literal: literal}
 		} else {
 			tok = newToken(token.ASSIGN, l.ch)
