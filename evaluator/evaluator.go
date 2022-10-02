@@ -69,6 +69,14 @@ func evalIntegerInfixExpression(op token.TokenType, left object.Object, right ob
 		value = lvalue * rvalue
 	case token.SLASH:
 		value = lvalue / rvalue
+	case token.LT:
+		return nativeBoolToBooleanObject(lvalue < rvalue)
+	case token.GT:
+		return nativeBoolToBooleanObject(lvalue > rvalue)
+	case token.EQ:
+		return nativeBoolToBooleanObject(lvalue == rvalue)
+	case token.NOT_EQ:
+		return nativeBoolToBooleanObject(lvalue != rvalue)
 	default:
 		return NULL
 	}
