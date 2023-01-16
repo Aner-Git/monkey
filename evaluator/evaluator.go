@@ -17,10 +17,16 @@ func Eval(node ast.Node) object.Object {
 	switch v := node.(type) {
 
 	case *ast.Program:
-		return evalStatements(v.Statements)
+		return evalProgram(v.Statements)
 
 	case *ast.ExpressionStatement:
 		return Eval(v.Expression)
+
+	case *ast.BlockStatement:
+		return evalBlockStatements(v.Statements)
+
+	case *ast.ReturnStatement:
+		return evalReturnStatement(v)
 
 	//Expressions
 	case *ast.IntegerLiteral:
@@ -34,9 +40,41 @@ func Eval(node ast.Node) object.Object {
 
 	case *ast.InfixExpression:
 		return evalInfixExpression(v)
+
+	case *ast.IfExpression:
+		return evalIfExpression(v)
 	}
 
 	return nil
+}
+
+func evalReturnStatement(stm *ast.ReturnStatement) object.Object {
+	v := Eval(stm.ReturnValue)
+	return &object.ReturnValue{Value: v}
+}
+
+func evalIfExpression(exp *ast.IfExpression) object.Object {
+	condition := Eval(exp.Condition)
+
+	if isTruthy(condition) {
+		return Eval(exp.Consequence)
+	} else if exp.Alternative != nil {
+		return Eval(exp.Alternative)
+	}
+
+	return NULL
+
+}
+
+func isTruthy(o object.Object) bool {
+
+	//null and false are false, all other are true
+	switch o {
+	case NULL, FALSE:
+		return false
+	}
+
+	return true
 }
 
 func evalInfixExpression(exp *ast.InfixExpression) object.Object {
@@ -47,13 +85,28 @@ func evalInfixExpression(exp *ast.InfixExpression) object.Object {
 	switch {
 	case (right.Type() == object.INTEGER_OBJ && left.Type() == object.INTEGER_OBJ):
 		return evalIntegerInfixExpression(exp.Token.Type, left, right)
+	case (right.Type() == object.BOOLEAN_OBJ && left.Type() == object.BOOLEAN_OBJ):
+		return evalBooleanInfixExpression(exp.Token.Type, left, right)
 
 	default:
 		return NULL
 	}
 }
 
-func evalIntegerInfixExpression(op token.TokenType, left object.Object, right object.Object) object.Object {
+func evalBooleanInfixExpression(op token.TokenType, left, right object.Object) object.Object {
+
+	switch op {
+	case token.EQ:
+		return nativeBoolToBooleanObject(left == right)
+	case token.NOT_EQ:
+		return nativeBoolToBooleanObject(left != right)
+
+	default:
+		return NULL
+	}
+}
+
+func evalIntegerInfixExpression(op token.TokenType, left, right object.Object) object.Object {
 
 	rvalue := right.(*object.Integer).Value
 	lvalue := left.(*object.Integer).Value
@@ -131,11 +184,30 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 	return FALSE
 }
 
-func evalStatements(stmts []ast.Statement) object.Object {
+func evalProgram(stmts []ast.Statement) object.Object {
 	var result object.Object
 
 	for _, statement := range stmts {
 		result = Eval(statement)
+
+		if rv, ok := result.(*object.ReturnValue); ok {
+			return rv.Value
+		}
+	}
+
+	return result
+}
+
+func evalBlockStatements(stmts []ast.Statement) object.Object {
+	var result object.Object
+
+	for _, statement := range stmts {
+		result = Eval(statement)
+
+		//keep returning bubbling up
+		if result != nil && result.Type() == object.RETURN_VALUE_OBJ {
+			return result
+		}
 	}
 
 	return result
