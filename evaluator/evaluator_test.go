@@ -11,7 +11,97 @@ func testEval(input string) object.Object {
 	l := lex.New(input)
 	p := parser.New(l)
 
-	return Eval(p.ParseProgram())
+	env := object.NewEnvironment()
+	return Eval(p.ParseProgram(), env)
+}
+
+func TestLetStatement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{
+			input:    "let x=5;x",
+			expected: 5,
+		},
+		{
+			input:    "let x=5*5;x",
+			expected: 25,
+		},
+		{
+			input:    "let a=5; let b=a;b;",
+			expected: 5,
+		},
+		{
+			input:    "let a=5; let b=a;let c = a+b+5;c;",
+			expected: 15,
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestErrorHandling(t *testing.T) {
+	tests := []struct {
+		input           string
+		expectedMessage string
+	}{
+		{
+			"5+true;",
+			"type mismatch: INTEGER + BOOLEAN",
+		},
+		{
+			"5+true;5;",
+			"type mismatch: INTEGER + BOOLEAN",
+		},
+		{
+			"-true;5;",
+			"unknown operator: -BOOLEAN",
+		},
+		{
+			"true + false;",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"5;true + false;5",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"if(10>1){true + false;}",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{`
+          if(10>1){
+		    if(10>1){
+			   false + true;
+			  }
+			  return 1;
+		  }
+		`,
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"foobar",
+			"identifier not found: foobar",
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("no error object returned. got=%T(%+v)", evaluated, evaluated)
+			continue
+		}
+
+		if errObj.Message != tt.expectedMessage {
+			t.Errorf("wrong error message. expected=%q, got%q", tt.expectedMessage, errObj.Message)
+		}
+	}
 }
 
 func TestReturnStatement(t *testing.T) {

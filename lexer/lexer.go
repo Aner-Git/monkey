@@ -23,7 +23,7 @@ func (l *Lexer) readChar() {
 	}
 
 	l.position = l.readPosition
-	l.readPosition += 1
+	l.readPosition++
 }
 
 func (l *Lexer) isPeekChar(char byte) bool {

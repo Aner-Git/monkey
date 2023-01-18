@@ -6,6 +6,7 @@ import (
 	"io"
 	"monkey/evaluator"
 	lex "monkey/lexer"
+	"monkey/object"
 	"monkey/parser"
 )
 
@@ -13,6 +14,7 @@ const PROMPRT = " >> "
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
+	env := object.NewEnvironment()
 
 	for {
 		fmt.Printf(PROMPRT)
@@ -32,10 +34,10 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		obj := evaluator.Eval(program)
+		obj := evaluator.Eval(program, env)
 
 		if obj == nil {
-			io.WriteString(out, "\tCant evaluate the expression!\n")
+			//	io.WriteString(out, "\tCant evaluate the expression!\n")
 			continue
 		}
 
