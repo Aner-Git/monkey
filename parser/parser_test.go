@@ -18,6 +18,75 @@ func TestNewParser(t *testing.T) {
 	}
 }
 
+func TestParsingIndexExpressions(t *testing.T) {
+	input := "myArray[1+1]"
+	l := lex.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	indExp, ok := stmt.Expression.(*ast.IndexExpression)
+
+	if !ok {
+
+		t.Fatalf("exp not ast.IndexExpression. got=%T", stmt.Expression)
+	}
+
+	if !testIdentifier(t, indExp.Left, "myArray") {
+		return
+	}
+
+	if !testInfixExpression(t, indExp.Index, 1, "+", 1) {
+		return
+	}
+}
+
+func TestParsingArrayLiterals(t *testing.T) {
+	input := "[1, 2*3,3+3]"
+	l := lex.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	array, ok := stmt.Expression.(*ast.ArrayLiteral)
+
+	if !ok {
+		t.Fatalf("exp not ast.ArrayLiteral. got=%T", stmt.Expression)
+	}
+
+	if len(array.Elements) != 3 {
+		t.Fatalf("len(array.Elements) not 3. got=%d", len(array.Elements))
+	}
+
+	testIntegerLiteral(t, array.Elements[0], 1)
+	testInfixExpression(t, array.Elements[1], 2, "*", 3)
+	testInfixExpression(t, array.Elements[2], 3, "+", 3)
+}
+
+func TestStringLiteralExpression(t *testing.T) {
+	input := `"hello world"`
+
+	l := lex.New(input)
+
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	literal, ok := stmt.Expression.(*ast.StringLiteral)
+
+	if !ok {
+		t.Fatalf("exp not *ast.StringLeteral. got=%T", stmt.Expression)
+	}
+
+	if literal.Value != "hello world" {
+
+		t.Fatalf("literal.Value not %q. got=%q", "hello world", literal.Value)
+	}
+}
+
 func TestParserReportsErrors(t *testing.T) {
 	input := `
     let x := 5;
@@ -436,6 +505,14 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{
 			"-add(a,b)",
 			"(-add(a,b))",
+		},
+		{
+			"a*[1,2,3,4][b*c]*d",
+			"((a * ([1, 2, 3, 4][(b * c)])) * d)",
+		},
+		{
+			"add(a*b[2], b[1], 2*[1,2][1])",
+			"add((a * (b[2])),(b[1]),(2 * ([1, 2][1])))",
 		},
 	}
 

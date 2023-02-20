@@ -1,6 +1,8 @@
 package lexer
 
-import "monkey/token"
+import (
+	"monkey/token"
+)
 
 type Lexer struct {
 	input        string
@@ -60,6 +62,14 @@ func (l *Lexer) readNumber() string {
 	return l.input[position:l.position]
 }
 
+func (l *Lexer) readString() string {
+	position := l.position
+	for !isStringQuote(l.ch) {
+		l.readChar()
+	}
+	return l.input[position:l.position]
+}
+
 func (l *Lexer) NextToken() token.Token {
 
 	l.skipWhiteSpace()
@@ -94,6 +104,10 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LPAREN, l.ch)
 	case ')':
 		tok = newToken(token.RPAREN, l.ch)
+	case '[':
+		tok = newToken(token.LBRACKET, l.ch)
+	case ']':
+		tok = newToken(token.RBRACKET, l.ch)
 	case '!':
 		if l.isPeekChar('=') {
 			l.readChar()
@@ -106,6 +120,14 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.ASTERISK, l.ch)
 	case '/':
 		tok = newToken(token.SLASH, l.ch)
+	case '"':
+		l.readChar() //skip " char
+		tok.Type = token.STRING
+		tok.Literal = l.readString()
+		//validate closing " for the strings
+		if !(l.ch == '"') {
+			return token.Token{Type: token.ILLEGAL, Literal: string("invalid string")}
+		}
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF
@@ -138,6 +160,10 @@ func isLetter(ch byte) bool {
 
 func isDigit(ch byte) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+func isStringQuote(ch byte) bool {
+	return ch == '"' || ch == 0 //EOF
 }
 
 func isWhiteLetter(ch byte) bool {

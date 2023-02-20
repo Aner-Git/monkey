@@ -131,6 +131,21 @@ func (es *ExpressionStatement) String() string {
 	return ""
 }
 
+type StringLiteral struct {
+	Token token.Token
+	Value string
+}
+
+func (s *StringLiteral) expressionNode() {}
+
+func (s *StringLiteral) TokenLiteral() string {
+	return s.Token.Literal
+}
+
+func (s *StringLiteral) String() string {
+	return s.Token.Literal
+}
+
 /*
 * Integers
 * e.g 1, 789, 10
@@ -330,6 +345,51 @@ func (ce *CallExpression) String() string {
 	out.WriteString("(")
 	out.WriteString(strings.Join(arguments, ","))
 	out.WriteString(")")
+
+	return out.String()
+}
+
+type ArrayLiteral struct {
+	Token    token.Token // the [ token
+	Elements []Expression
+}
+
+func (a *ArrayLiteral) expressionNode()      {}
+func (a *ArrayLiteral) TokenLiteral() string { return a.Token.Literal }
+
+func (a *ArrayLiteral) String() string {
+
+	var out bytes.Buffer
+	elements := []string{}
+
+	for _, e := range a.Elements {
+		elements = append(elements, e.String())
+	}
+
+	out.WriteString("[")
+	out.WriteString(strings.Join(elements, ", "))
+	out.WriteString("]")
+
+	return out.String()
+}
+
+type IndexExpression struct {
+	Token token.Token // The [ token
+	Left  Expression
+	Index Expression
+}
+
+func (ie *IndexExpression) expressionNode()      {}
+func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
+
+func (ie *IndexExpression) String() string {
+
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(ie.Left.String())
+	out.WriteString("[")
+	out.WriteString(ie.Index.String())
+	out.WriteString("])")
 
 	return out.String()
 }

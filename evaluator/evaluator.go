@@ -37,9 +37,15 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		//bind the identifier
 		env.Set(v.Name.Value, val)
 
+	case *ast.FunctionLiteral:
+		return evalFunction(v, env)
+
 	//Expressions
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: v.Value}
+
+	case *ast.StringLiteral:
+		return &object.String{Value: v.Value}
 
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(v.Value)
@@ -55,21 +61,95 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.Identifier:
 		return evalIdentifier(v, env)
+
+	case *ast.CallExpression:
+		function := Eval(v.Function, env)
+		if isError(function) {
+			return function
+		}
+
+		args := evalExpressions(v.Arguments, env)
+		if len(args) == 1 && isError(args[0]) {
+			return args[0]
+		}
+
+		//bind arguments, and call Body Expression
+		return applyFunction(function, args)
+
+	case *ast.ArrayLiteral:
+		elements := evalExpressions(v.Elements, env)
+		if len(elements) == 1 && isError(elements[0]) {
+			return elements[0]
+		}
+
+		return &object.Array{Elements: elements}
 	}
 
 	return nil
 }
 
-func evalIdentifier(stm *ast.Identifier, env *object.Environment) object.Object {
-	val, ok := env.Get(stm.Value)
-	if !ok {
-		return newError("identifier not found: " + stm.Value)
+func applyFunction(fn object.Object, args []object.Object) object.Object {
+
+	switch fn := fn.(type) {
+	case *object.Function:
+		extendedEnv := extendFunctionEnv(fn, args)
+		evaluated := Eval(fn.Body, extendedEnv)
+
+		return unwrapReturnValue(evaluated)
+
+	case *object.Builtin:
+		return fn.Fn(args...)
 	}
-	return val
+
+	return newError("not a function: %s", fn.Type())
 }
 
-func evalReturnStatement(stm *ast.ReturnStatement, env *object.Environment) object.Object {
-	v := Eval(stm.ReturnValue, env)
+func unwrapReturnValue(obj object.Object) object.Object {
+	if returnValue, ok := obj.(*object.ReturnValue); ok {
+		return returnValue.Value
+	}
+	return obj
+}
+
+func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
+	env := object.ExtendEnvironment(fn.Env)
+	for i, param := range fn.Parameters {
+		env.Set(param.Value, args[i])
+	}
+	return env
+}
+
+func evalExpressions(args []ast.Expression, env *object.Environment) []object.Object {
+	var evaluated []object.Object
+	for _, arg := range args {
+		obj := Eval(arg, env)
+		if isError(obj) {
+			return []object.Object{obj}
+		}
+		evaluated = append(evaluated, obj)
+	}
+
+	return evaluated
+}
+
+func evalFunction(node *ast.FunctionLiteral, env *object.Environment) object.Object {
+	return &object.Function{Parameters: node.Parameters, Body: node.Body, Env: env}
+}
+
+func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
+	if val, ok := env.Get(node.Value); ok {
+		return val
+	}
+
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+
+	return newError("identifier not found: " + node.Value)
+}
+
+func evalReturnStatement(node *ast.ReturnStatement, env *object.Environment) object.Object {
+	v := Eval(node.ReturnValue, env)
 	if isError(v) {
 		return v
 	}
@@ -121,6 +201,8 @@ func evalInfixExpression(exp *ast.InfixExpression, env *object.Environment) obje
 		return evalIntegerInfixExpression(exp.Token.Type, left, right)
 	case (right.Type() == object.BOOLEAN_OBJ && left.Type() == object.BOOLEAN_OBJ):
 		return evalBooleanInfixExpression(exp.Token.Type, left, right)
+	case (right.Type() == object.STRING_OBJ && left.Type() == object.STRING_OBJ):
+		return evalStringInfixExpression(exp.Token.Type, left, right)
 	case (right.Type() != left.Type()):
 		return newError("type mismatch: %s %s %s", left.Type(), exp.Token.Type, right.Type())
 
@@ -142,6 +224,18 @@ func evalBooleanInfixExpression(op token.TokenType, left, right object.Object) o
 	case token.NOT_EQ:
 		return nativeBoolToBooleanObject(left != right)
 
+	default:
+		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
+	}
+}
+
+func evalStringInfixExpression(op token.TokenType, left, right object.Object) object.Object {
+	rvalue := right.(*object.String).Value
+	lvalue := left.(*object.String).Value
+
+	switch op {
+	case token.PLUS:
+		return &object.String{Value: lvalue + rvalue}
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
 	}
