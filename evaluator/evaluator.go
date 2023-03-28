@@ -83,9 +83,44 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		return &object.Array{Elements: elements}
+
+	case *ast.IndexExpression:
+		left := Eval(v.Left, env)
+		if isError(left) {
+			return left
+		}
+
+		index := Eval(v.Index, env)
+		if isError(index) {
+			return index
+		}
+
+		return evalIndexExpression(left, index)
 	}
 
 	return nil
+}
+
+func evalIndexExpression(left, index object.Object) object.Object {
+
+	arrayOb, ok := left.(*object.Array)
+	if !ok {
+		return newError("index operator not supported: %s", left.Type())
+	}
+
+	indxOb, ok := index.(*object.Integer)
+	if !ok {
+		return newError("Invalid index")
+	}
+
+	idx := indxOb.Value
+	max := int64(len(arrayOb.Elements) - 1)
+
+	if idx < 0 || idx > max {
+		return NULL
+	}
+
+	return arrayOb.Elements[idx]
 }
 
 func applyFunction(fn object.Object, args []object.Object) object.Object {
@@ -327,6 +362,7 @@ func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range stmts {
+
 		result = Eval(statement, env)
 
 		switch result := result.(type) {
